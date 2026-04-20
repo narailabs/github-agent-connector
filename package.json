@@ -1,0 +1,31 @@
+{
+  "name": "@narai/github-agent-connector",
+  "version": "1.0.0",
+  "description": "Read-only GitHub connector: repo info, code search, PR/issue listing, file retrieval. Ships a JSON-envelope CLI and a library API. Zero doc-wiki coupling.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./cli": "./dist/cli.js"
+  },
+  "bin": { "github-agent-connector": "./dist/cli.js" },
+  "engines": { "node": ">=20.0.0" },
+  "files": ["dist/", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@narai/connector-toolkit": "file:../connector-toolkit",
+    "@narai/credential-providers": "^0.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.39",
+    "typescript": "^5.9.3",
+    "vitest": "^3.0.0"
+  },
+  "license": "MIT",
+  "keywords": ["github", "connector", "claude", "agent"]
+}
