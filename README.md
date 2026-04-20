@@ -9,6 +9,10 @@ npm install @narai/github-agent-connector
 export GITHUB_TOKEN="ghp_…"
 ```
 
+## Claude Code plugin
+
+A ready-to-install Claude Code plugin lives at [`plugin/`](./plugin). It adds a `github-agent` skill and a `/github-agent <action> <params-json>` slash command, wrapping this connector. The plugin is excluded from the npm tarball via `.npmignore`; Claude Code marketplaces point directly at the `plugin/` subdirectory of this repo.
+
 ## License
 
 MIT
