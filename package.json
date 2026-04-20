@@ -18,7 +18,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@narai/connector-toolkit": "file:../connector-toolkit",
+    "@narai/connector-toolkit": "^1.0.0",
     "@narai/credential-providers": "^0.2.1"
   },
   "devDependencies": {
