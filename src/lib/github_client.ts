@@ -305,6 +305,155 @@ export class GithubClient {
     });
   }
 
+  public async getIssueComments(
+    owner: string,
+    repo: string,
+    issueNumber: number,
+    perPage = 100,
+  ): Promise<GithubResult<GithubIssueCommentList>> {
+    const raw = await this.get<GithubRawIssueComment[]>(
+      `/repos/${owner}/${repo}/issues/${issueNumber}/comments`,
+      { per_page: perPage },
+    );
+    if (!raw.ok) return raw;
+    const results: GithubIssueComment[] = (raw.data ?? []).map((c) => ({
+      id: c.id,
+      author: c.user?.login ?? "",
+      created_at: c.created_at ?? "",
+      updated_at: c.updated_at ?? c.created_at ?? "",
+      body_markdown: c.body ?? "",
+      html_url: c.html_url ?? "",
+    }));
+    return { ok: true, status: raw.status, data: { issueNumber, results } };
+  }
+
+  public async getPullReviews(
+    owner: string,
+    repo: string,
+    prNumber: number,
+    perPage = 100,
+  ): Promise<GithubResult<GithubPullReview[]>> {
+    const raw = await this.get<GithubRawPullReview[]>(
+      `/repos/${owner}/${repo}/pulls/${prNumber}/reviews`,
+      { per_page: perPage },
+    );
+    if (!raw.ok) return raw;
+    const results: GithubPullReview[] = (raw.data ?? []).map((r) => ({
+      id: r.id,
+      author: r.user?.login ?? "",
+      state: r.state ?? "",
+      submitted_at: r.submitted_at ?? "",
+      body_markdown: r.body ?? "",
+      html_url: r.html_url ?? "",
+    }));
+    return { ok: true, status: raw.status, data: results };
+  }
+
+  public async getPullReviewComments(
+    owner: string,
+    repo: string,
+    prNumber: number,
+    perPage = 100,
+  ): Promise<GithubResult<GithubPullInlineComment[]>> {
+    const raw = await this.get<GithubRawPullReviewComment[]>(
+      `/repos/${owner}/${repo}/pulls/${prNumber}/comments`,
+      { per_page: perPage },
+    );
+    if (!raw.ok) return raw;
+    const results: GithubPullInlineComment[] = (raw.data ?? []).map((c) => ({
+      id: c.id,
+      author: c.user?.login ?? "",
+      path: c.path ?? "",
+      line: c.line ?? c.original_line ?? null,
+      commit_id: c.commit_id ?? "",
+      created_at: c.created_at ?? "",
+      updated_at: c.updated_at ?? c.created_at ?? "",
+      body_markdown: c.body ?? "",
+      html_url: c.html_url ?? "",
+      diff_hunk: c.diff_hunk ?? "",
+    }));
+    return { ok: true, status: raw.status, data: results };
+  }
+
+  public async listReleaseByTag(
+    owner: string,
+    repo: string,
+    tag: string,
+  ): Promise<GithubResult<GithubReleaseWithAssets>> {
+    return this.get<GithubReleaseWithAssets>(
+      `/repos/${owner}/${repo}/releases/tags/${tag}`,
+    );
+  }
+
+  public async getReleaseAssetDownload(
+    owner: string,
+    repo: string,
+    assetId: number,
+  ): Promise<
+    GithubResult<{
+      bytes: Uint8Array;
+      contentType: string;
+      filename: string;
+    }>
+  > {
+    const url = `${this._apiBase}/repos/${owner}/${repo}/releases/assets/${assetId}`;
+    if (!validateUrl(url)) {
+      return {
+        ok: false,
+        code: "INVALID_URL",
+        message: `URL rejected: ${url}`,
+        retriable: false,
+      };
+    }
+    await this._throttle();
+    const ctrl = new AbortController();
+    const timer = setTimeout(
+      () => ctrl.abort(),
+      this._connectTimeoutMs + this._readTimeoutMs,
+    );
+    try {
+      const response = await this._fetch(url, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${this._token}`,
+          Accept: "application/octet-stream",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+        signal: ctrl.signal,
+      });
+      const status = response.status;
+      if (!response.ok) {
+        return {
+          ok: false,
+          code: classifyHttpStatus(status),
+          message: `GitHub HTTP ${status} downloading asset ${assetId}`,
+          retriable: status === 429 || status >= 500,
+          status,
+        };
+      }
+      const buf = await response.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      const contentType =
+        response.headers.get("content-type") ?? "application/octet-stream";
+      const filename =
+        parseContentDispositionFilename(
+          response.headers.get("content-disposition"),
+        ) ?? `asset-${assetId}`;
+      return { ok: true, data: { bytes, contentType, filename }, status };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const aborted = err instanceof DOMException || /abort/i.test(message);
+      return {
+        ok: false,
+        code: aborted ? "TIMEOUT" : "NETWORK_ERROR",
+        message: aborted ? "Request timed out" : message,
+        retriable: true,
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   /** List wiki pages via GraphQL (repository has hasWikiEnabled flag). */
   public async listWikiPages(
     owner: string,
@@ -372,6 +521,105 @@ export interface GithubSearchCodeResponse {
     repository: { full_name: string };
     html_url: string;
   }>;
+}
+
+export interface GithubIssueComment {
+  id: number;
+  author: string;
+  created_at: string;
+  updated_at: string;
+  body_markdown: string;
+  html_url: string;
+}
+
+export interface GithubIssueCommentList {
+  issueNumber: number;
+  results: GithubIssueComment[];
+}
+
+interface GithubRawIssueComment {
+  id: number;
+  user?: { login?: string };
+  created_at?: string;
+  updated_at?: string;
+  body?: string;
+  html_url?: string;
+}
+
+export interface GithubPullReview {
+  id: number;
+  author: string;
+  state: string;
+  submitted_at: string;
+  body_markdown: string;
+  html_url: string;
+}
+
+interface GithubRawPullReview {
+  id: number;
+  user?: { login?: string };
+  state?: string;
+  submitted_at?: string;
+  body?: string;
+  html_url?: string;
+}
+
+export interface GithubPullInlineComment {
+  id: number;
+  author: string;
+  path: string;
+  line: number | null;
+  commit_id: string;
+  created_at: string;
+  updated_at: string;
+  body_markdown: string;
+  html_url: string;
+  diff_hunk: string;
+}
+
+interface GithubRawPullReviewComment {
+  id: number;
+  user?: { login?: string };
+  path?: string;
+  line?: number | null;
+  original_line?: number | null;
+  commit_id?: string;
+  created_at?: string;
+  updated_at?: string;
+  body?: string;
+  html_url?: string;
+  diff_hunk?: string;
+}
+
+export interface GithubReleaseAsset {
+  id: number;
+  name: string;
+  label?: string | null;
+  content_type: string;
+  size: number;
+  download_count: number;
+  created_at: string;
+  updated_at: string;
+  browser_download_url: string;
+}
+
+export interface GithubReleaseWithAssets {
+  id: number;
+  tag_name: string;
+  name?: string | null;
+  body?: string | null;
+  draft?: boolean;
+  prerelease?: boolean;
+  created_at?: string;
+  published_at?: string;
+  author?: { login?: string };
+  assets: GithubReleaseAsset[];
+}
+
+function parseContentDispositionFilename(header: string | null): string | null {
+  if (!header) return null;
+  const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(header);
+  return match && match[1] ? match[1].trim() : null;
 }
 
 function parseRetryAfter(value: string | null): number | null {

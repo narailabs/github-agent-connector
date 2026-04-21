@@ -45,6 +45,127 @@ function makeConnector(client: GithubClient) {
   });
 }
 
+describe("GithubClient — comments + releases", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("getIssueComments normalizes comment list", async () => {
+    let calledUrl = "";
+    const client = makeClient({}, async (url) => {
+      calledUrl = url;
+      return jsonResponse([
+        {
+          id: 1,
+          user: { login: "alice" },
+          created_at: "2026-04-01T00:00:00Z",
+          body: "hello",
+          html_url: "https://github.com/a/b/issues/1#issuecomment-1",
+        },
+      ]);
+    });
+    const r = await client.getIssueComments("a", "b", 1);
+    expect(calledUrl).toMatch(/\/repos\/a\/b\/issues\/1\/comments/);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.data.results).toHaveLength(1);
+      expect(r.data.results[0]?.author).toBe("alice");
+      expect(r.data.results[0]?.body_markdown).toBe("hello");
+    }
+  });
+
+  it("getPullReviews returns reviews", async () => {
+    const client = makeClient({}, async () =>
+      jsonResponse([
+        {
+          id: 10,
+          user: { login: "bob" },
+          state: "APPROVED",
+          submitted_at: "2026-04-02T00:00:00Z",
+          body: "lgtm",
+        },
+      ]),
+    );
+    const r = await client.getPullReviews("a", "b", 5);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.data).toHaveLength(1);
+      expect(r.data[0]?.state).toBe("APPROVED");
+    }
+  });
+
+  it("getPullReviewComments returns inline comments", async () => {
+    const client = makeClient({}, async () =>
+      jsonResponse([
+        {
+          id: 100,
+          user: { login: "carol" },
+          path: "src/a.ts",
+          line: 42,
+          commit_id: "abc123",
+          body: "nit: rename",
+          diff_hunk: "@@ ...",
+        },
+      ]),
+    );
+    const r = await client.getPullReviewComments("a", "b", 5);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.data).toHaveLength(1);
+      expect(r.data[0]?.path).toBe("src/a.ts");
+      expect(r.data[0]?.line).toBe(42);
+    }
+  });
+
+  it("listReleaseByTag returns release + assets", async () => {
+    const client = makeClient({}, async (url) => {
+      expect(url).toMatch(/\/repos\/a\/b\/releases\/tags\/v1\.0\.0/);
+      return jsonResponse({
+        id: 777,
+        tag_name: "v1.0.0",
+        name: "v1.0.0",
+        body: "release notes",
+        assets: [
+          {
+            id: 9001,
+            name: "binary.tar.gz",
+            content_type: "application/gzip",
+            size: 42,
+            download_count: 3,
+            created_at: "2026-04-01",
+            updated_at: "2026-04-01",
+            browser_download_url: "https://github.com/a/b/releases/download/v1.0.0/binary.tar.gz",
+          },
+        ],
+      });
+    });
+    const r = await client.listReleaseByTag("a", "b", "v1.0.0");
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.data.assets).toHaveLength(1);
+      expect(r.data.assets[0]?.id).toBe(9001);
+    }
+  });
+
+  it("getReleaseAssetDownload returns raw bytes + filename", async () => {
+    const body = new Uint8Array([9, 8, 7]);
+    const client = makeClient({}, async (url) => {
+      expect(url).toMatch(/\/releases\/assets\/9001$/);
+      return new Response(body, {
+        status: 200,
+        headers: {
+          "content-type": "application/gzip",
+          "content-disposition": 'attachment; filename="binary.tar.gz"',
+        },
+      });
+    });
+    const r = await client.getReleaseAssetDownload("a", "b", 9001);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(Array.from(r.data.bytes)).toEqual([9, 8, 7]);
+      expect(r.data.filename).toBe("binary.tar.gz");
+    }
+  });
+});
+
 describe("GithubClient", () => {
   afterEach(() => vi.restoreAllMocks());
 
