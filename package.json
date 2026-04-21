@@ -27,7 +27,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@narai/connector-toolkit": "^2.0.0-rc.2",
+    "@narai/connector-toolkit": "^2.1.0-rc.2",
     "@narai/credential-providers": "^0.2.1",
     "zod": "^3.23.0"
   },
