@@ -1,7 +1,7 @@
 {
   "name": "@narai/github-agent-connector",
-  "version": "1.0.0",
-  "description": "Read-only GitHub connector: repo info, code search, PR/issue listing, file retrieval. Ships a JSON-envelope CLI and a library API. Zero doc-wiki coupling.",
+  "version": "2.0.0",
+  "description": "Read-only GitHub connector: repo info, code search, PR/issue listing, file retrieval. Built on @narai/connector-toolkit with an approval gate and hardship logging. JSON-envelope CLI + library API.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -10,6 +10,15 @@
     "./cli": "./dist/cli.js"
   },
   "bin": { "github-agent-connector": "./dist/cli.js" },
+  "publishConfig": { "access": "public" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/narailabs/github-agent-connector.git"
+  },
+  "bugs": {
+    "url": "https://github.com/narailabs/github-agent-connector/issues"
+  },
+  "homepage": "https://github.com/narailabs/github-agent-connector#readme",
   "engines": { "node": ">=20.0.0" },
   "files": ["dist/", "README.md", "LICENSE"],
   "scripts": {
@@ -18,8 +27,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@narai/connector-toolkit": "^1.0.0",
-    "@narai/credential-providers": "^0.2.1"
+    "@narai/connector-toolkit": "^2.0.0-rc.2",
+    "@narai/credential-providers": "^0.2.1",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^20.19.39",
