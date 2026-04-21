@@ -5,7 +5,18 @@
  * `Connector` instance; `buildGithubConnector(overrides?)` is exposed for
  * tests that want to inject a fake GitHub client.
  */
-import { createConnector, type Connector, type ErrorCode } from "@narai/connector-toolkit";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { createHash, randomUUID } from "node:crypto";
+import {
+  createConnector,
+  extractBinary,
+  FORMAT_MAP,
+  sanitizeLabel,
+  type Connector,
+  type ErrorCode,
+} from "@narai/connector-toolkit";
 import { z } from "zod";
 import {
   GithubClient,
@@ -84,6 +95,37 @@ const getFileParams = z.object({
       message: "Path traversal not allowed — '..' is forbidden",
     }),
   ref: z.string().default("main"),
+});
+
+const issueNumberField = z.coerce.number().int().positive();
+
+const getIssueCommentsParams = z.object({
+  owner: ownerRepoField,
+  repo: ownerRepoField,
+  issue_number: issueNumberField,
+});
+
+const getPrReviewCommentsParams = z.object({
+  owner: ownerRepoField,
+  repo: ownerRepoField,
+  pr_number: issueNumberField,
+});
+
+const tagField = z
+  .string()
+  .min(1)
+  .regex(/^[A-Za-z0-9._/+-]+$/, "Invalid tag");
+
+const listReleaseAssetsParams = z.object({
+  owner: ownerRepoField,
+  repo: ownerRepoField,
+  tag: tagField,
+});
+
+const getReleaseAssetParams = z.object({
+  owner: ownerRepoField,
+  repo: ownerRepoField,
+  asset_id: z.coerce.number().int().positive(),
 });
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -295,6 +337,183 @@ export function buildGithubConnector(overrides: BuildOptions = {}): Connector {
             size_bytes: data.size ?? 0,
             content: decoded,
             encoding: "utf-8",
+          };
+        },
+      },
+      get_issue_comments: {
+        description: "List comments on an issue (or PR conversation)",
+        params: getIssueCommentsParams,
+        classify: { kind: "read" },
+        handler: async (p: z.infer<typeof getIssueCommentsParams>, ctx) => {
+          const result = await ctx.sdk.getIssueComments(
+            p.owner,
+            p.repo,
+            p.issue_number,
+          );
+          throwIfError(result);
+          return {
+            owner: p.owner,
+            repo: p.repo,
+            issue_number: p.issue_number,
+            total: result.data.results.length,
+            comments: result.data.results.map((c) => ({
+              comment_id: c.id,
+              author: c.author,
+              created_at: c.created_at,
+              updated_at: c.updated_at,
+              body_markdown: c.body_markdown,
+              html_url: c.html_url,
+            })),
+          };
+        },
+      },
+      get_pr_review_comments: {
+        description:
+          "List reviews + inline comments on a pull request",
+        params: getPrReviewCommentsParams,
+        classify: { kind: "read" },
+        handler: async (p: z.infer<typeof getPrReviewCommentsParams>, ctx) => {
+          const reviewsRes = await ctx.sdk.getPullReviews(
+            p.owner,
+            p.repo,
+            p.pr_number,
+          );
+          throwIfError(reviewsRes);
+          const inlineRes = await ctx.sdk.getPullReviewComments(
+            p.owner,
+            p.repo,
+            p.pr_number,
+          );
+          throwIfError(inlineRes);
+          return {
+            owner: p.owner,
+            repo: p.repo,
+            pr_number: p.pr_number,
+            reviews: reviewsRes.data.map((r) => ({
+              review_id: r.id,
+              author: r.author,
+              state: r.state,
+              submitted_at: r.submitted_at,
+              body_markdown: r.body_markdown,
+              html_url: r.html_url,
+            })),
+            inline_comments: inlineRes.data.map((c) => ({
+              comment_id: c.id,
+              author: c.author,
+              path: c.path,
+              line: c.line,
+              commit_id: c.commit_id,
+              created_at: c.created_at,
+              body_markdown: c.body_markdown,
+              diff_hunk: c.diff_hunk,
+              html_url: c.html_url,
+            })),
+          };
+        },
+      },
+      list_release_assets: {
+        description:
+          "List assets on a GitHub release identified by its tag",
+        params: listReleaseAssetsParams,
+        classify: { kind: "read" },
+        handler: async (p: z.infer<typeof listReleaseAssetsParams>, ctx) => {
+          const result = await ctx.sdk.listReleaseByTag(
+            p.owner,
+            p.repo,
+            p.tag,
+          );
+          throwIfError(result);
+          const rel = result.data;
+          return {
+            owner: p.owner,
+            repo: p.repo,
+            release: {
+              release_id: rel.id,
+              tag_name: rel.tag_name,
+              name: rel.name ?? "",
+              body_markdown: rel.body ?? "",
+              draft: rel.draft ?? false,
+              prerelease: rel.prerelease ?? false,
+              published_at: rel.published_at ?? null,
+              author: rel.author?.login ?? "",
+            },
+            assets: (rel.assets ?? []).map((a) => ({
+              asset_id: a.id,
+              name: a.name,
+              label: a.label ?? null,
+              content_type: a.content_type,
+              size_bytes: a.size,
+              download_count: a.download_count,
+              created_at: a.created_at,
+              browser_download_url: a.browser_download_url,
+            })),
+          };
+        },
+      },
+      get_release_asset: {
+        description:
+          "Download and extract a release asset to text (PDF/DOCX/PPTX/text)",
+        params: getReleaseAssetParams,
+        classify: { kind: "read" },
+        handler: async (p: z.infer<typeof getReleaseAssetParams>, ctx) => {
+          const dl = await ctx.sdk.getReleaseAssetDownload(
+            p.owner,
+            p.repo,
+            p.asset_id,
+          );
+          throwIfError(dl);
+          const { bytes, contentType, filename } = dl.data;
+          const ext = path.extname(filename).toLowerCase();
+          const fmt = FORMAT_MAP[ext];
+          let extracted: {
+            format: "pdf" | "docx" | "pptx" | "text" | "skipped";
+            text: string | null;
+            warning?: string;
+          };
+          if (contentType.startsWith("text/")) {
+            extracted = {
+              format: "text",
+              text: new TextDecoder("utf-8").decode(bytes),
+            };
+          } else if (fmt) {
+            const tmp = path.join(
+              os.tmpdir(),
+              `gh-asset-${randomUUID()}${ext}`,
+            );
+            try {
+              fs.writeFileSync(tmp, bytes);
+              const r = await extractBinary(tmp, fmt);
+              extracted = { format: r.format, text: r.text };
+            } catch (e) {
+              extracted = {
+                format: "skipped",
+                text: null,
+                warning: e instanceof Error ? e.message : String(e),
+              };
+            } finally {
+              try {
+                fs.unlinkSync(tmp);
+              } catch {
+                /* best-effort */
+              }
+            }
+          } else {
+            extracted = {
+              format: "skipped",
+              text: null,
+              warning: `Unsupported media type '${contentType}'`,
+            };
+          }
+          const checksum = createHash("sha256").update(bytes).digest("hex");
+          return {
+            asset_id: p.asset_id,
+            owner: p.owner,
+            repo: p.repo,
+            filename: sanitizeLabel(filename, 255),
+            media_type: contentType,
+            size_bytes: bytes.byteLength,
+            checksum,
+            extracted,
           };
         },
       },

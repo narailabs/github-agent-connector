@@ -233,11 +233,145 @@ describe("github connector — fetch()", () => {
     const c = buildGithubConnector();
     expect([...c.validActions].sort()).toEqual([
       "get_file",
+      "get_issue_comments",
       "get_issues",
+      "get_pr_review_comments",
       "get_pulls",
+      "get_release_asset",
+      "list_release_assets",
       "repo_info",
       "search_code",
     ]);
+  });
+
+  it("get_issue_comments returns shaped envelope", async () => {
+    const client = makeClient({}, async () =>
+      jsonResponse([
+        {
+          id: 1,
+          user: { login: "alice" },
+          created_at: "2026-04-01T00:00:00Z",
+          body: "hello",
+          html_url: "https://github.com/a/b/issues/1#issuecomment-1",
+        },
+      ]),
+    );
+    const c = makeConnector(client);
+    const r = await c.fetch("get_issue_comments", {
+      owner: "a",
+      repo: "b",
+      issue_number: 1,
+    });
+    expect(r.status).toBe("success");
+    if (r.status === "success") {
+      const comments = r.data["comments"] as Array<Record<string, unknown>>;
+      expect(comments).toHaveLength(1);
+      expect(comments[0]?.["author"]).toBe("alice");
+    }
+  });
+
+  it("get_pr_review_comments returns reviews + inline_comments", async () => {
+    const client = makeClient({}, async (url) => {
+      if (url.includes("/reviews")) {
+        return jsonResponse([
+          {
+            id: 10,
+            user: { login: "bob" },
+            state: "APPROVED",
+            body: "lgtm",
+          },
+        ]);
+      }
+      return jsonResponse([
+        {
+          id: 100,
+          user: { login: "carol" },
+          path: "src/a.ts",
+          line: 42,
+          body: "nit",
+        },
+      ]);
+    });
+    const c = makeConnector(client);
+    const r = await c.fetch("get_pr_review_comments", {
+      owner: "a",
+      repo: "b",
+      pr_number: 5,
+    });
+    expect(r.status).toBe("success");
+    if (r.status === "success") {
+      const reviews = r.data["reviews"] as Array<Record<string, unknown>>;
+      const inline = r.data["inline_comments"] as Array<
+        Record<string, unknown>
+      >;
+      expect(reviews).toHaveLength(1);
+      expect(reviews[0]?.["state"]).toBe("APPROVED");
+      expect(inline).toHaveLength(1);
+      expect(inline[0]?.["path"]).toBe("src/a.ts");
+    }
+  });
+
+  it("list_release_assets returns release + assets", async () => {
+    const client = makeClient({}, async () =>
+      jsonResponse({
+        id: 777,
+        tag_name: "v1.0.0",
+        name: "v1.0.0",
+        body: "notes",
+        assets: [
+          {
+            id: 9001,
+            name: "x.tar.gz",
+            content_type: "application/gzip",
+            size: 42,
+            download_count: 3,
+            created_at: "2026-04-01",
+            updated_at: "2026-04-01",
+            browser_download_url: "https://github.com/a/b/.../x.tar.gz",
+          },
+        ],
+      }),
+    );
+    const c = makeConnector(client);
+    const r = await c.fetch("list_release_assets", {
+      owner: "a",
+      repo: "b",
+      tag: "v1.0.0",
+    });
+    expect(r.status).toBe("success");
+    if (r.status === "success") {
+      const release = r.data["release"] as Record<string, unknown>;
+      const assets = r.data["assets"] as Array<Record<string, unknown>>;
+      expect(release["tag_name"]).toBe("v1.0.0");
+      expect(assets).toHaveLength(1);
+      expect(assets[0]?.["asset_id"]).toBe(9001);
+    }
+  });
+
+  it("get_release_asset extracts text asset", async () => {
+    const body = new TextEncoder().encode("README");
+    const client = makeClient({}, async () =>
+      new Response(body, {
+        status: 200,
+        headers: {
+          "content-type": "text/plain",
+          "content-disposition": 'attachment; filename="README.txt"',
+        },
+      }),
+    );
+    const c = makeConnector(client);
+    const r = await c.fetch("get_release_asset", {
+      owner: "a",
+      repo: "b",
+      asset_id: 9001,
+    });
+    expect(r.status).toBe("success");
+    if (r.status === "success") {
+      expect(r.data["filename"]).toBe("README.txt");
+      const extracted = r.data["extracted"] as Record<string, unknown>;
+      expect(extracted["format"]).toBe("text");
+      expect(extracted["text"]).toBe("README");
+    }
   });
 
   it("rejects invalid owner", async () => {
