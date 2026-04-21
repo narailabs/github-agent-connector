@@ -1,16 +1,23 @@
 {
   "name": "@narai/github-agent-connector",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Read-only GitHub connector: repo info, code search, PR/issue listing, file retrieval. Built on @narai/connector-toolkit with an approval gate and hardship logging. JSON-envelope CLI + library API.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
     "./cli": "./dist/cli.js"
   },
-  "bin": { "github-agent-connector": "./dist/cli.js" },
-  "publishConfig": { "access": "public" },
+  "bin": {
+    "github-agent-connector": "./dist/cli.js"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/narailabs/github-agent-connector.git"
@@ -19,8 +26,14 @@
     "url": "https://github.com/narailabs/github-agent-connector/issues"
   },
   "homepage": "https://github.com/narailabs/github-agent-connector#readme",
-  "engines": { "node": ">=20.0.0" },
-  "files": ["dist/", "README.md", "LICENSE"],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
@@ -37,5 +50,10 @@
     "vitest": "^3.0.0"
   },
   "license": "MIT",
-  "keywords": ["github", "connector", "claude", "agent"]
+  "keywords": [
+    "github",
+    "connector",
+    "claude",
+    "agent"
+  ]
 }
