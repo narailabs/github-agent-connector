@@ -1,6 +1,6 @@
 {
   "name": "@narai/github-agent-connector",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Read-only GitHub connector: repo info, code search, PR/issue listing, file retrieval. Built on @narai/connector-toolkit with an approval gate and hardship logging. JSON-envelope CLI + library API.",
   "type": "module",
   "main": "./dist/index.js",

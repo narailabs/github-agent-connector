@@ -196,6 +196,21 @@ export interface BuildOptions {
   credentials?: () => Promise<Record<string, unknown>>;
 }
 
+/**
+ * Scope callback installed into the toolkit config. Returns
+ * `${host}/${defaultOwner}` when a tenant owner is configured, otherwise
+ * `null` (global tier). Exported for unit testing.
+ */
+export function githubScope(ctx: {
+  sdk: GithubClient;
+  action: string;
+  params: unknown;
+}): string | null {
+  const owner = ctx.sdk.defaultOwner;
+  if (!owner) return null;
+  return `${ctx.sdk.host}/${owner}`;
+}
+
 export function buildGithubConnector(overrides: BuildOptions = {}): Connector {
   const defaultCredentials = async (): Promise<Record<string, unknown>> => {
     const creds = await loadGithubCredentials();
@@ -212,17 +227,16 @@ export function buildGithubConnector(overrides: BuildOptions = {}): Connector {
         false,
       );
     }
-    return new GithubClient(creds);
+    return new GithubClient({
+      token: creds.token,
+      ...(creds.defaultOwner ? { defaultOwner: creds.defaultOwner } : {}),
+    });
   };
 
   return createConnector<GithubClient>({
     name: "github",
-    version: "3.0.0",
-    // TODO(scope): ideal key is `${host}/${owner}` (e.g. "github.com/acme-corp"), but
-    // `owner` is per-request and not stored on GithubClient. Storing it would require
-    // a stateful client mutation or a constructor-level default owner, neither of which
-    // fits the current multi-repo call pattern. Use null (global tier) for now.
-    scope: () => null,
+    version: "3.0.1",
+    scope: githubScope,
     credentials: overrides.credentials ?? defaultCredentials,
     sdk: overrides.sdk ?? defaultSdk,
     actions: {

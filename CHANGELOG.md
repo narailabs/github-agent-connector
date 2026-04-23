@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.0.1 — 2026-04-22
+
+### Added
+- `scope(ctx)` now returns `${host}/${defaultOwner}` (e.g. `api.github.com/narailabs`) when `defaultOwner` is configured, and `null` otherwise. Hardships and patterns.yaml are now keyed by tenant when the owner is set.
+- `GithubClient` accepts a new optional `defaultOwner` constructor field.
+- `GithubClient` exposes public getters `defaultOwner: string | null` and `host: string`.
+- `loadGithubCredentials()` now also reads `GITHUB_OWNER` (via `resolveSecret` + `process.env` fallback) and returns it alongside the token.
+
 ## 3.0.0 — 2026-04-22
 
 ### BREAKING
