@@ -1,6 +1,6 @@
 {
   "name": "@narai/github-agent-connector",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "description": "Read-only GitHub connector: repo info, code search, PR/issue listing, file retrieval. Built on @narai/connector-toolkit with an approval gate and hardship logging. JSON-envelope CLI + library API.",
   "type": "module",
   "main": "./dist/index.js",
@@ -40,7 +40,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@narai/connector-toolkit": "^2.1.0-rc.2",
+    "@narai/connector-toolkit": "^3.0.0-rc.1",
     "@narai/credential-providers": "^0.2.1",
     "zod": "^3.23.0"
   },

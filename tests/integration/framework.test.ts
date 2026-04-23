@@ -112,11 +112,13 @@ describe("hardship logging integration", () => {
     });
     await c.fetch("repo_info", { owner: "a", repo: "b" });
 
+    // Toolkit 3.0 uses tiered layout: global/hardships.jsonl (scope returns null → global tier).
     const logPath = path.join(
       tmpHome,
       ".claude",
       "connectors",
       "github",
+      "global",
       "hardships.jsonl",
     );
     expect(fs.existsSync(logPath)).toBe(true);
@@ -136,11 +138,13 @@ describe("hardship logging integration", () => {
       repo: "b",
       path: "../etc/passwd",
     });
+    // Toolkit 3.0 uses tiered layout: global/hardships.jsonl (validation errors → global tier).
     const logPath = path.join(
       tmpHome,
       ".claude",
       "connectors",
       "github",
+      "global",
       "hardships.jsonl",
     );
     expect(fs.existsSync(logPath)).toBe(true);
