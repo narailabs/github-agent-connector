@@ -217,7 +217,12 @@ export function buildGithubConnector(overrides: BuildOptions = {}): Connector {
 
   return createConnector<GithubClient>({
     name: "github",
-    version: "2.0.0",
+    version: "3.0.0",
+    // TODO(scope): ideal key is `${host}/${owner}` (e.g. "github.com/acme-corp"), but
+    // `owner` is per-request and not stored on GithubClient. Storing it would require
+    // a stateful client mutation or a constructor-level default owner, neither of which
+    // fits the current multi-repo call pattern. Use null (global tier) for now.
+    scope: () => null,
     credentials: overrides.credentials ?? defaultCredentials,
     sdk: overrides.sdk ?? defaultSdk,
     actions: {
