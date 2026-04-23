@@ -23,6 +23,7 @@ const GITHUB_API_BASE = "https://api.github.com";
 export interface GithubClientOptions {
   token: string;
   apiBase?: string;
+  defaultOwner?: string;
   rateLimitPerMin?: number;
   connectTimeoutMs?: number;
   readTimeoutMs?: number;
@@ -45,18 +46,23 @@ export interface GithubSuccessPayload<T> {
 export type GithubResult<T> = GithubSuccessPayload<T> | GithubErrorPayload;
 
 export async function loadGithubCredentials(): Promise<
-  { token: string } | null
+  { token: string; defaultOwner: string | null } | null
 > {
   const token =
     (await resolveSecret("GITHUB_TOKEN")) ??
     process.env["GITHUB_TOKEN"] ??
     null;
   if (!token) return null;
-  return { token };
+  const defaultOwner =
+    (await resolveSecret("GITHUB_OWNER")) ??
+    process.env["GITHUB_OWNER"] ??
+    null;
+  return { token, defaultOwner };
 }
 
 export class GithubClient {
   private readonly _apiBase: string;
+  private _defaultOwner: string | null = null;
   private readonly _token: string;
   private readonly _rateLimitPerMin: number;
   private readonly _connectTimeoutMs: number;
@@ -71,6 +77,7 @@ export class GithubClient {
       throw new Error(`Invalid GitHub API base: ${base}`);
     }
     this._apiBase = base.replace(/\/+$/, "");
+    this._defaultOwner = opts.defaultOwner ?? null;
     this._token = opts.token;
     this._rateLimitPerMin = opts.rateLimitPerMin ?? DEFAULT_RATE_LIMIT_PER_MIN;
     this._connectTimeoutMs = opts.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
@@ -79,6 +86,14 @@ export class GithubClient {
     this._sleep =
       opts.sleepImpl ??
       ((ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  }
+
+  public get defaultOwner(): string | null {
+    return this._defaultOwner;
+  }
+
+  public get host(): string {
+    return new URL(this._apiBase).host;
   }
 
   private async _throttle(): Promise<void> {

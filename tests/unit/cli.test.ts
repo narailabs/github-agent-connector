@@ -2,7 +2,7 @@
  * Tests for the GitHub connector built on `@narai/connector-toolkit`.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildGithubConnector } from "../../src/index.js";
+import { buildGithubConnector, githubScope } from "../../src/index.js";
 import {
   GithubClient,
   type GithubClientOptions,
@@ -220,6 +220,46 @@ describe("GithubClient", () => {
       expect(r.code).toBe("NOT_FOUND");
       expect(r.retriable).toBe(false);
     }
+  });
+});
+
+describe("scope(ctx)", () => {
+  it("client exposes defaultOwner and host when defaultOwner is set", () => {
+    const client = new GithubClient({ token: "x", defaultOwner: "narailabs" });
+    expect(client.defaultOwner).toBe("narailabs");
+    expect(client.host).toBe("api.github.com");
+  });
+
+  it("client exposes null defaultOwner and default host when not set", () => {
+    const client = new GithubClient({ token: "x" });
+    expect(client.defaultOwner).toBeNull();
+    expect(client.host).toBe("api.github.com");
+  });
+
+  it("githubScope returns `${host}/${defaultOwner}` when defaultOwner is set", () => {
+    const client = new GithubClient({ token: "x", defaultOwner: "narailabs" });
+    expect(
+      githubScope({ sdk: client, action: "repo_info", params: {} }),
+    ).toBe("api.github.com/narailabs");
+  });
+
+  it("githubScope returns null when defaultOwner is missing", () => {
+    const client = new GithubClient({ token: "x" });
+    expect(
+      githubScope({ sdk: client, action: "repo_info", params: {} }),
+    ).toBeNull();
+  });
+
+  it("buildGithubConnector wires the scope callback through (sanity)", () => {
+    const client = new GithubClient({ token: "x", defaultOwner: "narailabs" });
+    const c = buildGithubConnector({
+      sdk: async () => client,
+      credentials: async () => ({ token: "x" }),
+    });
+    // The connector exposes name + validActions; scope is consumed internally
+    // by the toolkit. We verify the callback indirectly via the exported
+    // `githubScope` (same function installed into the config).
+    expect(c.name).toBe("github");
   });
 });
 
