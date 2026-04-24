@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.1.0 — 2026-04-23
+
+### Added
+- Usage tracking via `@narai/connector-toolkit@^3.1.0`. Installs three plugin hooks (`PostToolUse`, `SessionEnd`, `SessionStart` stale-check) that record per-call response bytes and estimated tokens to `.claude/connectors/github/usage/<session>.jsonl` and summarize at session end.
+
+### Changed
+- `@narai/connector-toolkit` dep bumped from `^3.0.0-rc.1` to `^3.1.0`.
+
 ## 3.0.1 — 2026-04-22
 
 ### Added
