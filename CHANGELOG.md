@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.2.0 — 2026-04-25
+
+### Added
+- `@narai/connector-config@^1.1.0` dep + a CLI bootstrap that loads the GitHub slice from `~/.connectors/config.yaml` (or `NARAI_CONFIG_BLOB` when injected by `@narai/connector-hub`) and applies its options to `process.env` before `connector.main` runs. Existing `GITHUB_*` env exports take precedence — the bootstrap only fills in undefined entries. Mapping: `token → GITHUB_TOKEN`, `owner → GITHUB_OWNER`.
+
 ## 3.1.0 — 2026-04-23
 
 ### Added
