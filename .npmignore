@@ -4,6 +4,7 @@
 src/
 tests/
 plugin/
+evals/
 vitest.config.ts
 tsconfig.json
 .gitignore
